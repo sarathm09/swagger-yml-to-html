@@ -25,15 +25,22 @@ const replacePlaceholderForSwaggerJson = (template, json) => template.replace("'
  * @param {string} dir directory to save the json file
  * @returns a promise that resolves when the yml is converted
  */
-const convertSwaggerYmlToJson = async (yml, dir) => exec(`java -jar ${SWAGGER_CODEGEN_JAR_PATH} generate -l swagger -i ${yml} -o ${dir}/`)
+const convertSwaggerYmlToJson = async (yml, dir) => {
+    try {
+        await exec(`java -jar ${SWAGGER_CODEGEN_JAR_PATH} generate -l swagger -i ${yml} -o ${dir}/`)
+    } catch (e) {
+        console.error(`Error generating the swagger json file. Check if the swagger yml file ${yml} is correct: ${e}`)
+        process.exit(1)
+    }
+}
 
 /**
  * Cleanup swagger generated files
  */
-const cleanupSwaggerFiles = () => {
+const cleanupSwaggerFiles = directory => {
     try {
-        ;['.swagger-codegen'].map(file => rmdirSync(file, { recursive: true }))
-        ;['.swagger-codegen-ignore', 'README.md'].map(file => unlinkSync(file))
+        ;['.swagger-codegen'].map(file => rmdirSync(join(directory, file), { recursive: true }))
+        ;['.swagger-codegen-ignore', 'README.md'].map(file => unlinkSync(join(directory, file)))
     } catch (e) {}
 }
 
@@ -66,7 +73,7 @@ const convertToHtml = async (swaggerYmlPath, outputFile = __dirname, templatePat
     const generatedHtml = await getGeneratedHtml(swaggerYmlPath, templatePath)
     await writeFile(outputFile, generatedHtml)
     console.log(`Generated the html file: ${outputFile}`)
-    cleanupSwaggerFiles()
+    cleanupSwaggerFiles(dirname(outputFile))
 }
 
 /**
@@ -84,7 +91,7 @@ const getGeneratedHtml = async (swaggerYmlPath, templatePath = HTML_TEMPLATE_DEF
     const swaggerJsonDirectory = dirname(swaggerYmlPath)
     const template = await readFile(templatePath, 'utf-8')
     await convertSwaggerYmlToJson(swaggerYmlPath, swaggerJsonDirectory)
-    cleanupSwaggerFiles()
+    cleanupSwaggerFiles(dirname(outputFile))
 
     const swaggerJson = JSON.parse(await readFile(join(swaggerJsonDirectory, 'swagger.json'), 'utf-8'))
     const convertedHtml = replacePlaceholderForSwaggerJson(template, swaggerJson)
