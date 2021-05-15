@@ -1,5 +1,5 @@
 const { SWAGGER_CODEGEN_JAR_PATH, HTML_TEMPLATE_DEFAULT_PATH } = require('./constants')
-const { existsSync, lstatSync, unlinkSync, rmdirSync } = require('fs')
+const { existsSync, lstatSync, mkdirSync, rmdir } = require('fs')
 const { mkdir, readFile, writeFile } = require('fs').promises
 const { join, dirname, sep } = require('path')
 const { promisify } = require('util')
@@ -27,7 +27,12 @@ const replacePlaceholderForSwaggerJson = (template, json) => template.replace("'
  */
 const convertSwaggerYmlToJson = async (yml, dir) => {
     try {
-        await exec(`java -jar ${SWAGGER_CODEGEN_JAR_PATH} generate -l swagger -i ${yml} -o ${dir}/`)
+        const swaggerJsonDirectory = yml.replace('.yml', '').replace('.yaml', '')
+        if (!existsSync(swaggerJsonDirectory)) {
+            mkdirSync(swaggerJsonDirectory)
+        }
+        await exec(`java -jar ${SWAGGER_CODEGEN_JAR_PATH} generate -l swagger -i ${yml} -o ${swaggerJsonDirectory}`)
+        return join(swaggerJsonDirectory, 'swagger.json')
     } catch (e) {
         console.error(`Error generating the swagger json file. Check if the swagger yml file ${yml} is correct: ${e}`)
         process.exit(1)
@@ -37,12 +42,16 @@ const convertSwaggerYmlToJson = async (yml, dir) => {
 /**
  * Cleanup swagger generated files
  */
-const cleanupSwaggerFiles = directory => {
-    try {
-        ;['.swagger-codegen'].map(file => rmdirSync(join(directory, file), { recursive: true }))
-        ;['.swagger-codegen-ignore', 'README.md'].map(file => unlinkSync(join(directory, file)))
-    } catch (e) {}
-}
+const cleanupSwaggerFiles = directory =>
+    new Promise(resolve => {
+        try {
+            rmdir(directory, { recursive: true }, () => {
+                resolve(`Deleted swagger generated files in ${directory}`)
+            })
+        } catch (e) {
+            console.log(e)
+        }
+    })
 
 /**
  * Convert the yml to html using the given template and save in the specified location
@@ -73,7 +82,6 @@ const convertToHtml = async (swaggerYmlPath, outputFile = __dirname, templatePat
     const generatedHtml = await getGeneratedHtml(swaggerYmlPath, templatePath)
     await writeFile(outputFile, generatedHtml)
     console.log(`Generated the html file: ${outputFile}`)
-    cleanupSwaggerFiles(dirname(outputFile))
 }
 
 /**
@@ -90,12 +98,12 @@ const getGeneratedHtml = async (swaggerYmlPath, templatePath = HTML_TEMPLATE_DEF
     }
     const swaggerJsonDirectory = dirname(swaggerYmlPath)
     const template = await readFile(templatePath, 'utf-8')
-    await convertSwaggerYmlToJson(swaggerYmlPath, swaggerJsonDirectory)
-    cleanupSwaggerFiles(dirname(outputFile))
+    const swaggerJsonFile = await convertSwaggerYmlToJson(swaggerYmlPath, swaggerJsonDirectory)
 
-    const swaggerJson = JSON.parse(await readFile(join(swaggerJsonDirectory, 'swagger.json'), 'utf-8'))
+    const swaggerJson = JSON.parse(await readFile(swaggerJsonFile, 'utf-8'))
     const convertedHtml = replacePlaceholderForSwaggerJson(template, swaggerJson)
 
+    await cleanupSwaggerFiles(dirname(swaggerJsonFile))
     return convertedHtml
 }
 
