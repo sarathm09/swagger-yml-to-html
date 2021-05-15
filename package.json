@@ -1,0 +1,22 @@
+{
+    "name": "swagger-yml-to-html",
+    "version": "1.0.0",
+    "description": "Convert Swagger/OpenAPI yml file into html",
+    "main": "src/index.js",
+    "repository": "https://github.com/sarathm09/swagger-yml-to-html.git",
+    "author": "Sarath <sarathm09>",
+    "license": "MIT",
+    "private": false,
+    "scripts": {
+        "postinstall": "node src/setup.js"
+    },
+    "bin": {
+        "swagger-2-html": "src/cli.js",
+        "swagger-to-html": "src/cli.js",
+        "s2h": "src/cli.js"
+    },
+    "dependencies": {
+        "commander": "^7.2.0",
+        "node-fetch": "^2.6.1"
+    }
+}
